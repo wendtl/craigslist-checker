@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 from bs4 import BeautifulSoup
 from urllib2 import urlopen
 from datetime import datetime
@@ -8,34 +10,49 @@ import smtplib
 import config
 
 # Craigslist search URL
-BASE_URL = ('http://chicago.craigslist.org/search/'
-            '?sort=rel&areaID=11&subAreaID=&query={0}&catAbb=sss')
+SEARCH_URL = ('http://minneapolis.craigslist.org/search/sss?query={0}')
+BASE_URL = "http://minneapolis.craigslist.org"
+
+class Result:
+    """ Creates object from passed in HTML. Should be one row element from base search"""
+    def __init__(self, row):
+        self.url = BASE_URL + row.find("a", "result-title")['href']
+        if row.find("span", "result-price"):
+            self.price = row.find("span", "result-price").get_text()
+        else:
+            self.price = "NA"
+        self.create_date = row.find('time').get('datetime')
+        self.title = row.find('a', 'result-title').get_text()
+
+    def print_out(self):
+        print "Title: " + self.title
+        print "Price: " + self.price
+        print "Creation Date: " + self.create_date
+        print "URL: " + self.url
+        print
+
 
 def parse_results(search_term):
     results = []
     search_term = search_term.strip().replace(' ', '+')
-    search_url = BASE_URL.format(search_term)
+    search_url = SEARCH_URL.format(search_term)
     soup = BeautifulSoup(urlopen(search_url).read())
-    rows = soup.find('div', 'content').find_all('p', 'row')
+    rows = soup.find_all("li", "result-row")
     for row in rows:
-        url = 'http://chicago.craigslist.org' + row.a['href']
-        # price = row.find('span', class_='price').get_text()
-        create_date = row.find('time').get('datetime')
-        title = row.find_all('a')[1].get_text()
-        results.append({'url': url, 'create_date': create_date, 'title': title})
+        formattedResult = Result(row)
+        results.append(formattedResult)
     return results
 
-def write_results(results):
-    """Writes list of dictionaries to file."""
-    fields = results[0].keys()
+def record_results(results):
+    """ Writes URLs to file so we can keep track of what posts have been seen """
     with open('results.csv', 'w') as f:
-        dw = csv.DictWriter(f, fieldnames=fields, delimiter='|')
-        dw.writer.writerow(dw.fieldnames)
-        dw.writerows(results)
+        for x in results:
+            f.write(x.url)
+            f.write("\n")
 
 def has_new_records(results):
-    current_posts = [x['url'] for x in results]
-    fields = results[0].keys()
+    current_posts = [x.url for x in results]
+    fields = ["url"]
     if not os.path.exists('results.csv'):
         return True
 
@@ -53,11 +70,11 @@ def has_new_records(results):
 
 def send_text(phone_number, msg):
     fromaddr = "Craigslist Checker"
-    toaddrs = phone_number + "@txt.att.net"
-    msg = ("From: {0}\r\nTo: {1}\r\n\r\n{2}").format(fromaddr, toaddrs, msg)
+    toaddrs = phone_number + "@tmomail.net"
+    msg = ("From:{0}\r\nTo:{1}\r\nSubject:New Craigslist Result\r\n\r\n{2}").format(fromaddr, toaddrs, msg)
     server = smtplib.SMTP('smtp.gmail.com:587')
     server.starttls()
-    server.login(config.email['username'], config.email['password'])
+    server.login(config.data['username'], config.data['password'])
     server.sendmail(fromaddr, toaddrs, msg)
     server.quit()
 
@@ -66,8 +83,8 @@ def get_current_time():
 
 if __name__ == '__main__':
     try:
-        TERM = sys.argv[1]
-        PHONE_NUMBER = sys.argv[2].strip().replace('-', '')
+        SEARCH_TERM = sys.argv[1]
+        PHONE_NUMBER = config.data['phone']
     except:
         print "You need to include a search term and a 10-digit phone number!\n"
         sys.exit(1)
@@ -76,13 +93,14 @@ if __name__ == '__main__':
         print "Phone numbers must be 10 digits!\n"
         sys.exit(1)
 
-    results = parse_results(TERM)
-    
-    # Send the SMS message if there are new results
+    results = parse_results(SEARCH_TERM)
+
+    # Send an SMS message if there are new results. Only send first result to avoid spamming texts.
     if has_new_records(results):
-        message = "Hey - there are new Craigslist posts for: {0}".format(TERM.strip())
-        print "[{0}] There are new results - sending text message to {0}".format(get_current_time(), PHONE_NUMBER)
+        message = "Title: {0}\nPrice: {1}\nURL: {2}".format(results[0].title, results[0].price, results[0].url)
+        print "[{0}] There are new results - sending text message to {1}".format(get_current_time(), PHONE_NUMBER)
         send_text(PHONE_NUMBER, message)
-        write_results(results)
+        record_results(results)
     else:
         print "[{0}] No new results - will try again later".format(get_current_time())
+
