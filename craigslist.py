@@ -82,15 +82,11 @@ def get_current_time():
     return datetime.strftime(datetime.now(), '%Y-%m-%d %H:%M:%S')
 
 if __name__ == '__main__':
-    try:
-        SEARCH_TERM = sys.argv[1]
-        PHONE_NUMBER = config.data['phone']
-    except:
-        print "You need to include a search term and a 10-digit phone number!\n"
-        sys.exit(1)
+    PHONE_NUMBER = config.data['phone']
+    SEARCH_TERM = sys.argv[1]
 
     if len(PHONE_NUMBER) != 10:
-        print "Phone numbers must be 10 digits!\n"
+        print "Phone numbers must be 10 digits! Please change in config.\n"
         sys.exit(1)
 
     results = parse_results(SEARCH_TERM)

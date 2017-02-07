@@ -14,6 +14,11 @@ Install the required libraries via pip:
 
 Usage
 -----
-    python craigslist-checker.py <search-term> <phone-number>
+    python craigslist-checker.py <search-term>
 
 It's useful to setup a cronjob that will run the script every N minutes.
+
+TODO:
+ - Search multiple cities
+ - allow >1 search term?
+ - multiple carriers?
